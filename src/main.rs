@@ -42,13 +42,21 @@ fn get_flights() {
     println!("called `flights::get_flights()`");
 }
 
-fn get_pairing_number(document: Html) -> String {
-    // What do we use INSTEAD of all these unwrap()s?
-    // Should this function return a `Result<>` instead of a String?
-    let selector = Selector::parse("input[name='PrgNo']").unwrap();
-    let element = document.select(&selector).next().unwrap();
+fn get_pairing_number(document: &Html) -> Result<String, Box<dyn std::error::Error>> {
+    let selector = Selector::parse("input[name='PrgNo']")
+        .map_err(|e| format!("Failed to parse selector: {}", e))?;
 
-    element.value().attr("value").unwrap().to_string()
+    let element = document
+        .select(&selector)
+        .next()
+        .ok_or("No element found matching the selector")?;
+
+    let value = element
+        .value()
+        .attr("value")
+        .ok_or("No 'value' attribute found on the element")?;
+
+    Ok(value.to_string())
 }
 
 fn main() {
@@ -67,8 +75,8 @@ fn main() {
     let document = scraper::Html::parse_document(&html);
 
     // Get the pairing number
-    let pairing_number = get_pairing_number(document);
-    println!("\nPairing number: {}", pairing_number);
+    let pairing_number = get_pairing_number(&document);
+    println!("\nPairing number: {:?}", pairing_number);
 
     // Create some new crewmembers
     let crewmember_1 = Crewmember {
@@ -109,12 +117,9 @@ fn main() {
     // println!("\n{:#?}", flight_1);
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn get_pairing_number_works() {
-        assert_eq!("O4930A", get_pairing_number(document));
-    }
+#[test]
+fn get_pairing_number_works() {
+    let html = fs::read_to_string("tests/crewtrac.html").expect("Unable to read file");
+    let document = scraper::Html::parse_document(&html);
+    assert_eq!("O4930A", get_pairing_number(&document).unwrap());
 }
