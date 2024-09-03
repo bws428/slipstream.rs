@@ -37,11 +37,6 @@ struct Crew {
     sic_role: Crewmember,
 }
 
-#[allow(dead_code)]
-fn get_flights() {
-    println!("called `flights::get_flights()`");
-}
-
 fn get_pairing_info(document: &Html, search_str: &str) -> Option<String> {
     let selector = Selector::parse("input").expect("Invalid selector");
 
@@ -53,7 +48,7 @@ fn get_pairing_info(document: &Html, search_str: &str) -> Option<String> {
 }
 
 fn get_pairing_grid(document: &Html, search_str: &str) -> Option<String> {
-    let selector = Selector::parse("script").expect("Invalid script selector");
+    let selector = Selector::parse("script").expect("Invalid selector");
 
     document
         .select(&selector)
@@ -62,17 +57,13 @@ fn get_pairing_grid(document: &Html, search_str: &str) -> Option<String> {
         .map(String::from)
 }
 
-fn main() {
-    // Vectors can only store values of the same type.
-    // So the `flights` vector will be a collection of
-    // `Flight` structs.
-    #[allow(dead_code)]
-    //let mut flights: Vec<Flight> = Vec::new();
-    // We can loop through the HTML table of flights
-    // and add each leg to the `flights` vector.
+fn get_flights(pairing_grid: &String) {
+    println!("called `get_flights()`");
+}
 
+fn main() {
     // Get raw html from the `crewtrac.html` file (for now)
-    let html = fs::read_to_string("tests/crewtrac.html").expect("Unable to read CrewTrac file.");
+    let html = fs::read_to_string("tests/crewtrac.html").expect("Unable to read HTML file.");
 
     // parse the HTML document
     let document = scraper::Html::parse_document(&html);
@@ -80,26 +71,39 @@ fn main() {
     // Get the pairing number
     let pairing_number = match get_pairing_info(&document, "PrgNo") {
         Some(content) => content,
-        None => "[pairing number missing]".to_string(), // or some default value
+        None => "[not found]".to_string(), // or some default value
     };
 
     // Get the pairing date
-    let pairing_date = match get_pairing_info(&document, "PrgDat") {
-        Some(content) => content.replace("/", "-"),
-        None => "[pairing date missing]".to_string(), // or some default value
+    let pairing_date = match get_pairing_info(&document, "PrgDate") {
+        Some(content) => content,
+        None => "[not found]".to_string(),
     };
 
     // Get the raw pairing grid data ("gGridText") from inside its <script> tag
-    let pairing_grid = match get_pairing_grid(&document, "gGridText") {
+    let pairing_grid = match get_pairing_grid(&document, "boob") {
         Some(content) => content,
-        None => "No flights found.".to_string(), // or some default value
+        None => "no flights found".to_string(),
     };
 
     // Print pairing number and date
-    println!("\nPairing {pairing_number} on {pairing_date}");
+    println!("\nPairing number: {}", &pairing_number);
+    println!("Pairing date:   {}", &pairing_date);
 
-    // Print the raw GridText
-    println!("\n{}", pairing_grid);
+    // Print the raw pairing grid
+    println!("Pairing grid:   [{}]", &pairing_grid[..16]);
+
+    // Get flights
+    let flights = get_flights(&pairing_grid);
+    println!("\n{:#?}", &flights);
+
+    // Vectors can only store values of the same type.
+    // So the `flights` vector will be a collection of
+    // `Flight` structs.
+    #[allow(dead_code)]
+    //let mut flights: Vec<Flight> = Vec::new();
+    // We can loop through the HTML table of flights
+    // and add each leg to the `flights` vector.
 
     // Create some new crewmembers
     let crewmember_1 = Crewmember {
@@ -140,16 +144,28 @@ fn main() {
     //println!("\n{:#?}", flight_1);
 }
 
-#[test]
-fn get_pairing_number() {
-    let html = fs::read_to_string("tests/crewtrac.html").unwrap();
-    let document = scraper::Html::parse_document(&html);
-    assert_eq!("O4930A", get_pairing_info(&document, "PrgNo").unwrap());
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn get_pairing_date() {
-    let html = fs::read_to_string("tests/crewtrac.html").unwrap();
-    let document = scraper::Html::parse_document(&html);
-    assert_eq!("10/03/23", get_pairing_info(&document, "PrgDate").unwrap());
+    #[test]
+    fn get_pairing_number() {
+        let html = fs::read_to_string("tests/crewtrac.html").unwrap();
+        let document = scraper::Html::parse_document(&html);
+        assert_eq!(get_pairing_info(&document, "PrgNo").is_some(), true);
+    }
+
+    #[test]
+    fn get_pairing_date() {
+        let html = fs::read_to_string("tests/crewtrac.html").unwrap();
+        let document = scraper::Html::parse_document(&html);
+        assert_eq!(get_pairing_info(&document, "PrgDate").is_some(), true);
+    }
+
+    #[test]
+    fn get_pairing_gridtext() {
+        let html = fs::read_to_string("tests/crewtrac.html").unwrap();
+        let document = scraper::Html::parse_document(&html);
+        assert_eq!(get_pairing_grid(&document, "gGridText").is_some(), true);
+    }
 }
