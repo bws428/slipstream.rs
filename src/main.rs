@@ -42,24 +42,14 @@ fn get_flights() {
     println!("called `flights::get_flights()`");
 }
 
-fn get_pairing_info(
-    document: &Html,
-    search_str: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let selector =
-        Selector::parse(&search_str).map_err(|e| format!("Failed to parse selector: {}", e))?;
+fn get_pairing_info(document: &Html, search_str: &str) -> Option<String> {
+    let selector = Selector::parse("input").expect("Invalid selector");
 
-    let element = document
+    document
         .select(&selector)
-        .next()
-        .ok_or("No element found matching the selector")?;
-
-    let value = element
-        .value()
-        .attr("value")
-        .ok_or("No 'value' attribute found on the element")?;
-
-    Ok(value.to_string().replace("/", "-"))
+        .find(|element| element.value().attr("id") == Some(search_str))
+        .and_then(|element| element.value().attr("value"))
+        .map(String::from)
 }
 
 fn get_pairing_grid(document: &Html, search_str: &str) -> Option<String> {
@@ -82,18 +72,24 @@ fn main() {
     // and add each leg to the `flights` vector.
 
     // Get raw html from the `crewtrac.html` file (for now)
-    let html = fs::read_to_string("tests/crewtrac.html").expect("Unable to read file");
+    let html = fs::read_to_string("tests/crewtrac.html").expect("Unable to read CrewTrac file.");
 
     // parse the HTML document
     let document = scraper::Html::parse_document(&html);
 
     // Get the pairing number
-    let pairing_number = get_pairing_info(&document, "input[name='PrgNo']").unwrap();
+    let pairing_number = match get_pairing_info(&document, "PrgNo") {
+        Some(content) => content,
+        None => "[pairing number missing]".to_string(), // or some default value
+    };
 
     // Get the pairing date
-    let pairing_date = get_pairing_info(&document, "input[name='PrgDate']").unwrap();
+    let pairing_date = match get_pairing_info(&document, "PrgDat") {
+        Some(content) => content.replace("/", "-"),
+        None => "[pairing date missing]".to_string(), // or some default value
+    };
 
-    // Get the raw pairing grid ("gGridText") inside its <script> tag
+    // Get the raw pairing grid data ("gGridText") from inside its <script> tag
     let pairing_grid = match get_pairing_grid(&document, "gGridText") {
         Some(content) => content,
         None => "No flights found.".to_string(), // or some default value
@@ -103,14 +99,7 @@ fn main() {
     println!("\nPairing {pairing_number} on {pairing_date}");
 
     // Print the raw GridText
-    println!("\n{}", flight_grid);
-
-    // Get all the valid flight segments for this pairing.
-    // NOTE: All the flights data is contained inside a <script> tag under
-    // a variable called "gGridText", so we'll locate all the <script> tags
-    // and select the one that contains the "gGridText" variable. Then we'll
-    // process the raw "gGridText" string with our custom getFlights() function.
-    // const gridText = [...document.querySelectorAll("script")].filter((el) => (el.textContent.includes("gGridText")))[0].text;
+    println!("\n{}", pairing_grid);
 
     // Create some new crewmembers
     let crewmember_1 = Crewmember {
@@ -155,18 +144,12 @@ fn main() {
 fn get_pairing_number() {
     let html = fs::read_to_string("tests/crewtrac.html").unwrap();
     let document = scraper::Html::parse_document(&html);
-    assert_eq!(
-        "O4930A",
-        get_pairing_info(&document, "input[name='PrgNo']").unwrap()
-    );
+    assert_eq!("O4930A", get_pairing_info(&document, "PrgNo").unwrap());
 }
 
 #[test]
 fn get_pairing_date() {
     let html = fs::read_to_string("tests/crewtrac.html").unwrap();
     let document = scraper::Html::parse_document(&html);
-    assert_eq!(
-        "10.03.23",
-        get_pairing_info(&document, "input[name='PrgDate']").unwrap()
-    );
+    assert_eq!("10/03/23", get_pairing_info(&document, "PrgDate").unwrap());
 }
